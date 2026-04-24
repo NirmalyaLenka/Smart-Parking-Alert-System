@@ -130,7 +130,7 @@ A 10,000 mAh USB bank ≈ **100+ days** of runtime.
 
 ## 📄 License
 
-MIT — free to use, modify, and distribute.
+MIT  free to use, modify, and distribute.
 
 ---
 
@@ -141,3 +141,7 @@ PRs welcome! Ideas for improvement:
 - OLED display showing distance + status
 - MQTT integration for home automation
 - Multiple bay support
+- A battery-friendly ESP32-based system that guards your parking spot.
+It detects intruders using an ultrasonic sensor, identifies your car via a BLE beacon (your phone), sounds a buzzer alarm in a 10 s ON / 5 s OFF pattern, and deep-sleeps for 5 minutes when the bay is empty.
+
+

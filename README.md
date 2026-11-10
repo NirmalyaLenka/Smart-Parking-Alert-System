@@ -149,6 +149,30 @@ It detects intruders using an ultrasonic sensor, identifies your car via a BLE b
 
 ---
 
+## Skills & technologies
+
+`Arduino/C++` · `C/C++` · `HTML/CSS`
+
+
+## Repository structure
+
+Key files and folders (not exhaustive):
+
+- `BLE_BEACON_SETUP.h`
+- `README.md`
+- `SETUP.md`
+- `WIRING.md`
+- `gitignore (2)`
+- `index.html`
+- `parking_alert.ino`
+- `platformio.ini`
+
+
+## How it works
+
+The main firmware sketch is `parking_alert.ino`. Open it in Arduino IDE, verify the board, pin mapping and library requirements, then compile and upload. Test hardware behaviour on the real circuit before relying on it.
+
+
 ## Maintenance & Audit
 
 - **Audit date:** 10 November 2026

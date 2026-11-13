@@ -109,6 +109,6 @@ Set `OWNER_BLE_NAME` to the exact advertised name from your beacon app. Some pho
 
 ## Maintenance & audit
 
-- **Audit date:** 11 November 2026
+- **Audit date:** 13 November 2026
 - **Scope:** documentation-only review; firmware, wiring, and hardware behavior were not changed.
 - **Verification:** build and physical behavior remain unverified.

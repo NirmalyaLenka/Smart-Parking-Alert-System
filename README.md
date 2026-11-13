@@ -1,182 +1,114 @@
-# 🅿️ Smart Parking Alert System
+# Smart Parking Alert System
 
-A battery-friendly ESP32-based system that guards your parking spot.  
-It detects intruders using an **ultrasonic sensor**, identifies your car via a **BLE beacon** (your phone), sounds a buzzer alarm in a 10 s ON / 5 s OFF pattern, and **deep-sleeps for 5 minutes** when the bay is empty.
+An ESP32 prototype that measures distance with an HC-SR04-compatible ultrasonic sensor, scans for a configured BLE owner beacon, and drives a buzzer/LED alarm when a nearby object is not recognized. It uses timed deep sleep after repeated empty readings.
 
----
+This is a learning prototype, not a validated security system. BLE name/MAC matching is not authentication and can be spoofed; do not rely on it to protect property.
 
-## ✨ Features
+## Behavior in the current firmware
 
-| Feature | Detail |
-|---------|--------|
-| 🚗 Vehicle detection | HC-SR04 ultrasonic sensor (up to 4 m range) |
-| 📱 Owner recognition | BLE beacon from your phone — works from inside the car |
-| 🔔 Alarm pattern | 10 s buzzer ON → 5 s pause → repeat until car leaves |
-| 😴 Deep sleep | ESP32 sleeps 5 min when bay is empty (battery saving) |
-| ⚡ Low power | ~4 mA average current in monitoring mode |
-| 🌧️ Weatherproof option | Use JSN-SR04T sensor for outdoor mounting |
+1. Read ultrasonic distance and print it to Serial.
+2. If the reading is above `EMPTY_THRESHOLD_CM` (200 cm), increment an empty counter. After 10 readings at 500 ms intervals, the ESP32 enters deep sleep for 5 minutes.
+3. Otherwise, scan BLE for the configured owner name or MAC address.
+4. If the beacon is found, wait about 5 seconds and check again. If it is not found, run the buzzer alarm loop, nominally 10 seconds on and 5 seconds off, until the distance indicates the spot is empty or the owner beacon is detected.
 
----
+**Implementation details to know:** `CAR_THRESHOLD_CM` is defined as 80 cm but is not used in the current main decision branch; the firmware treats every reading at or below 200 cm as a vehicle/object. A sensor timeout is converted to 999 cm and therefore counted as an empty spot. The deep-sleep wake source currently enabled is the 5-minute timer; the optional sensor-trigger wake is commented out, so the device does not wake immediately when a vehicle enters.
 
-## 📁 Repository Structure
+## Hardware and pinout
 
-```
-parking-alert-system/
-├── firmware/
-│   ├── parking_alert.ino      # Main ESP32 sketch (Arduino IDE)
-│   ├── platformio.ini         # PlatformIO config
-│   └── BLE_BEACON_SETUP.h     # Guide to configure your BLE beacon
-├── hardware/
-│   └── WIRING.md              # Full wiring diagram & component list
-├── demo/
-│   └── index.html             # Interactive browser demo of the system
-├── docs/
-│   └── SETUP.md               # Step-by-step setup guide
-└── README.md
-```
+| ESP32 GPIO | Connection |
+|---|---|
+| GPIO 5 | HC-SR04 TRIG |
+| GPIO 18 | HC-SR04 ECHO |
+| GPIO 19 | Active buzzer control (use the transistor stage shown in the wiring guide where required) |
+| GPIO 2 | Optional/on-board status LED |
+| GND | Common reference as required by the circuit |
 
----
+See [`WIRING.md`](WIRING.md) for the full parts and wiring notes, and [`SETUP.md`](SETUP.md) for the beacon setup guide.
 
-## 🔧 Hardware Required
+**Critical electrical note:** a common HC-SR04 powered from 5 V can output a 5 V ECHO signal. ESP32 GPIOs are not 5 V tolerant. Use a correctly sized resistor divider or logic-level shifter on ECHO before connecting it to GPIO 18. Do not connect the 5 V ECHO signal directly. Verify the actual sensor and board pinout before applying power.
 
-- ESP32 DevKit v1 (any 30/38-pin)
-- HC-SR04 Ultrasonic Sensor (or JSN-SR04T for weatherproofing)
-- Active 5 V Buzzer
-- NPN Transistor (2N2222/BC547) + 1 kΩ resistor
-- 1N4007 diode (flyback protection)
-- Optional: 18650 LiPo + TP4056 + 5V boost converter
+## Software prerequisites
 
-See [`hardware/WIRING.md`](hardware/WIRING.md) for full diagram.
+- [PlatformIO Core](https://platformio.org/) or VS Code with the PlatformIO extension; alternatively Arduino IDE 2.x with the Espressif ESP32 board package.
+- A USB data cable and the correct serial port.
+- For owner detection, a phone or BLE beacon that advertises the configured name. The guide in [`BLE_BEACON_SETUP.h`](BLE_BEACON_SETUP.h) describes a sample setup.
 
----
+## Build and upload
 
-## 🚀 Quick Start
+### PlatformIO (configuration is at repository root)
 
-### 1. Flash the Firmware
+From the repository root:
 
-**Arduino IDE:**
-1. Install [Arduino IDE 2.x](https://www.arduino.cc/en/software)
-2. Add ESP32 board support: `File → Preferences → Additional Boards URL`:
-   ```
-   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-   ```
-3. `Tools → Board → ESP32 Dev Module`
-4. Open `firmware/parking_alert.ino`
-5. Upload
-
-**PlatformIO (VS Code):**
 ```bash
-cd firmware
-pio run --target upload
+pio run -e esp32dev
+pio run -e esp32dev --target upload
+pio device monitor -b 115200
 ```
 
-### 2. Configure Your BLE Beacon
+The optional `esp32_lipo` environment is also defined in `platformio.ini`. Select the actual serial port if PlatformIO cannot identify it.
 
-See [`firmware/BLE_BEACON_SETUP.h`](firmware/BLE_BEACON_SETUP.h) for full instructions.
+### Arduino IDE
 
-**Quick version:**
-1. Install **nRF Connect** on your phone
-2. Go to Advertiser → Add new advertisement
-3. Set device name to `Owner-Beacon`
-4. Start advertising & keep running in background
+1. Install Arduino IDE and the **ESP32 by Espressif Systems** board package.
+2. Open the root-level `parking_alert.ino`.
+3. Select the correct ESP32 board and serial port.
+4. Compile and upload, then open Serial Monitor at **115200 baud**.
 
-### 3. Update Firmware Constants
+Before the first powered test, verify the ECHO level shifter and buzzer driver, test the sensor with the buzzer disconnected, and keep the alarm output low-volume/brief during bench checks. Do not mount it outdoors until the enclosure, sensor, power supply, and wiring have been checked.
 
-In `parking_alert.ino`, update:
-```cpp
-#define OWNER_BLE_NAME  "Owner-Beacon"   // must match your beacon name
-#define OWNER_BLE_MAC   "aa:bb:cc:dd:ee:ff"  // your phone's BT MAC (optional)
-```
+## Configuration
 
-### 4. Wire & Mount
+The active settings are currently defined directly in `parking_alert.ino`.
 
-Follow `hardware/WIRING.md`, mount sensor at bumper height facing your bay.
+| Constant | Current value | Role |
+|---|---:|---|
+| `TRIG_PIN` / `ECHO_PIN` | GPIO 5 / 18 | Ultrasonic sensor |
+| `BUZZER_PIN` | GPIO 19 | Alarm output |
+| `CAR_THRESHOLD_CM` | 80 cm | Defined but not used in the current main decision branch |
+| `EMPTY_THRESHOLD_CM` | 200 cm | Distance above which the spot is treated as empty |
+| `MEASURE_INTERVAL_MS` | 500 ms | Delay between empty-state readings |
+| `EMPTY_COUNT_FOR_SLEEP` | 10 | Empty readings before sleep (about 5 seconds) |
+| `DEEP_SLEEP_DURATION_US` | 300,000,000 µs | Timer wake after 5 minutes |
+| `OWNER_BLE_SCAN_WINDOW_MS` | 2000 ms | BLE scan window |
+| `OWNER_POLL_INTERVAL_MS` | 5000 ms | Delay after owner detection |
+| `BEEP_ON_MS` / `BEEP_OFF_MS` | 10000 / 5000 ms | Nominal alarm pattern |
+| `OWNER_BLE_NAME` | `Owner-Beacon` | Primary advertised-name match |
+| `OWNER_BLE_MAC` | Placeholder MAC | Fallback address match |
 
----
+Set `OWNER_BLE_NAME` to the exact advertised name from your beacon app. Some phones randomize BLE addresses, and an advertised name can be copied by another device; neither check proves identity.
 
-## 🎮 Try the Demo
+## Repository map
 
-Open [`demo/index.html`](demo/index.html) in any browser — no hardware needed.  
-Simulates the full system: sensor readings, BLE detection, alarm pattern, and sleep mode.
+| Path | Purpose |
+|---|---|
+| `parking_alert.ino` | Main ESP32 firmware |
+| `platformio.ini` | PlatformIO environments and serial monitor speed |
+| `BLE_BEACON_SETUP.h` | BLE beacon setup notes |
+| `SETUP.md` | Step-by-step build, beacon, and test guide |
+| `WIRING.md` | Parts list, wiring, and power notes |
+| `index.html` | Interactive browser simulation only; it does not connect to the ESP32 |
+| `gitignore (2)` | Ignore rules under the filename currently present |
 
----
+## Troubleshooting
 
-## ⚙️ Configuration Reference
+- **Distance reads 999 cm:** the sketch uses that value when `pulseIn` times out. Check sensor power, TRIG/ECHO wiring, target angle, and the ECHO level shifter.
+- **False empty readings or premature sleep:** inspect sensor alignment and the timeout path; a timeout is currently treated as an empty bay.
+- **Owner never detected:** check exact beacon name, phone advertising permissions/background behavior, and Serial output. BLE identity is not secure authentication.
+- **Buzzer does not sound:** check transistor orientation, base resistor, supply, and buzzer polarity.
+- **ESP32 resets:** check supply capacity and the buzzer driver wiring.
+- **Alarm timing differs from nominal values:** BLE scans are blocking operations inside the alarm loop, so scans can extend the actual on/off intervals.
 
-| Constant | Default | Description |
-|----------|---------|-------------|
-| `CAR_THRESHOLD_CM` | 80 | Distance (cm) below which = vehicle present |
-| `EMPTY_THRESHOLD_CM` | 200 | Distance above which = bay empty |
-| `EMPTY_COUNT_FOR_SLEEP` | 10 | Consecutive empty readings before deep sleep |
-| `DEEP_SLEEP_DURATION_US` | 300,000,000 | Sleep duration (5 minutes) |
-| `OWNER_BLE_SCAN_WINDOW_MS` | 2000 | BLE scan window per cycle (ms) |
-| `BEEP_ON_MS` | 10000 | Buzzer on time per alarm cycle (ms) |
-| `BEEP_OFF_MS` | 5000 | Buzzer off pause per alarm cycle (ms) |
+## Limitations and verification
 
----
+- No measured battery-life or current-consumption data is supplied by the current source; power estimates from older documentation should not be treated as verified.
+- The sensor interrupt wake option is not enabled; deep sleep wakes by timer only.
+- The 80 cm vehicle threshold is currently unused by the decision branch.
+- BLE name/MAC checks are spoofable and should not be treated as access control.
+- No firmware build, range test, sleep-current measurement, or physical alarm test was performed during this documentation pass.
+- No `LICENSE` file appears in the current repository tree, so the previous README's MIT claim is not backed by a license file in the checked-in root.
 
-## 🔋 Power Consumption
-
-| State | Current | Notes |
-|-------|---------|-------|
-| Active (BLE scan) | ~120 mA | 2 s every poll cycle |
-| Active (sensor only) | ~80 mA | WiFi/BT radio off |
-| Deep sleep | ~10 µA | ESP32 deep sleep |
-| **Average (5 min cycle)** | **~4 mA** | Estimated |
-
-A 10,000 mAh USB bank ≈ **100+ days** of runtime.
-
----
-
-## 📄 License
-
-MIT  free to use, modify, and distribute.
-
----
-
-## 🤝 Contributing
-
-PRs welcome! Ideas for improvement:
-- WiFi push notification when intruder detected
-- OLED display showing distance + status
-- MQTT integration for home automation
-- Multiple bay support
-- A battery-friendly ESP32-based system that guards your parking spot.
-It detects intruders using an ultrasonic sensor, identifies your car via a BLE beacon (your phone), sounds a buzzer alarm in a 10 s ON / 5 s OFF pattern, and deep-sleeps for 5 minutes when the bay is empty.
-
-
-
-
----
-
-## Skills & technologies
-
-`Arduino/C++` · `C/C++` · `HTML/CSS`
-
-
-## Repository structure
-
-Key files and folders (not exhaustive):
-
-- `BLE_BEACON_SETUP.h`
-- `README.md`
-- `SETUP.md`
-- `WIRING.md`
-- `gitignore (2)`
-- `index.html`
-- `parking_alert.ino`
-- `platformio.ini`
-
-
-## How it works
-
-The main firmware sketch is `parking_alert.ino`. Open it in Arduino IDE, verify the board, pin mapping and library requirements, then compile and upload. Test hardware behaviour on the real circuit before relying on it.
-
-
-## Maintenance & Audit
+## Maintenance & audit
 
 - **Audit date:** 11 November 2026
-- **Documentation status:** README reviewed and audit record added on this date.
-- **Scope and evidence:** This is a documentation-level maintenance pass. It does not establish that source code compiles, dependencies are current, security has been tested, or hardware/runtime behavior has been verified.
-- **Code and tests:** No new functional code changes or test results are claimed by this README update. Run project-specific build, test, and hardware/runtime checks before relying on the project.
-- **Maintenance baseline:** Documentation status recorded through 11 November 2026; revisit setup instructions, dependencies, known limitations, and tests when the project changes.
+- **Scope:** documentation-only review; firmware, wiring, and hardware behavior were not changed.
+- **Verification:** build and physical behavior remain unverified.
